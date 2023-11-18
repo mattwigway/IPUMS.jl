@@ -1,0 +1,13 @@
+name = "IPUMS"
+uuid = "87abf0c3-8417-4f14-b6f9-37ae1cd0a135"
+authors = ["Matt Bhagat-Conway <matt@indicatrix.org> and contributors"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
