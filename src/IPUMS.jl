@@ -2,6 +2,8 @@ module IPUMS
 
 import Tables
 import EzXML: readxml, findall, namespace, findfirst, root
+import GZip
+
 
 abstract type DDIField end
 
@@ -61,9 +63,20 @@ function read_ipums(ddi, dat)
     # construct the type
     rowtype = NamedTuple{tuple(map(c -> c.name, cols)...), Tuple{map(eltype, cols)...}}
 
-    # TODO gzipped dat
+    return if isgzfile(dat)
+        IPUMSTable{rowtype}(GZip.open(dat, "r"), cols)
+    else
+        IPUMSTable{rowtype}(open(dat, "r"), cols)
+    end
+end
 
-    return IPUMSTable{rowtype}(open(dat, "r"), cols)
+"""
+Check for the GZip magic number to see if something is a GZipped file.
+"""
+function isgzfile(filename)
+    open(filename, "r") do file
+        return read(file, UInt8) == 0x1f && read(file, UInt8) == 0x8b
+    end
 end
 
 function read_ipums(ddi, dat, sink)
