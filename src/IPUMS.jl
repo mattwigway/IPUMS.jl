@@ -34,6 +34,9 @@ end
 Base.close(t::IPUMSTable) = Base.close(t.io)
 
 function read_ipums(ddi, dat)
+    isfile(ddi) || error("DDI file $ddi does not exist")
+    isfile(dat) || error("Data file $dat does not exist")
+
     # read the ddi file
     ddixml = readxml(ddi)
 
