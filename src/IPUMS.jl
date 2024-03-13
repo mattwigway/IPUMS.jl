@@ -3,7 +3,7 @@ module IPUMS
 import Tables
 import EzXML: readxml, findall, namespace, findfirst, root
 import GZip
-
+import Logging: @warn
 
 abstract type DDIField end
 
@@ -20,13 +20,33 @@ struct DoubleField <: DDIField
     decimals::Int64
 end
 
+struct CategoricalField <: DDIField
+    name::Symbol
+    startcol::Int64
+    endcol::Int64
+    labels::Dict{String, String}
+end
+
 # TODO labels
 
-parse_col(f::IntField, line) = parse(Int64, @view line[f.startcol:f.endcol])
-parse_col(f::DoubleField, line) = parse(Float64, @view line[f.startcol:f.endcol]) * 10.0^(-f.decimals)
+parse_col(f::IntField, line, _)::Float64 = parse(Int64, @view line[f.startcol:f.endcol])
+parse_col(f::DoubleField, line, _)::Float64 = parse(Float64, @view line[f.startcol:f.endcol]) * 10.0^(-f.decimals)
+
+function parse_col(f::CategoricalField, line, lineno)::String
+    val = @view line[f.startcol:f.endcol]
+    return if haskey(f.labels, val)
+        f.labels[val]
+    else
+        @warn "At line $lineno, found value \"$val\" in field \"$(f.name)\", which is not in value labels"
+        # de-substring it
+        String(val)
+    end
+end
 
 Base.eltype(::IntField) = Int64
 Base.eltype(::DoubleField) = Float64
+Base.eltype(::CategoricalField) = String
+
 
 struct IPUMSTable{T <: NamedTuple}
     io::IO
@@ -35,7 +55,15 @@ end
 
 Base.close(t::IPUMSTable) = Base.close(t.io)
 
-function read_ipums(ddi, dat)
+should_parse_labels(_, no_labels::Bool) = !no_labels
+should_parse_labels(name, no_labels::AbstractVector) = name ∉ no_labels && String(name) ∉ no_labels
+
+"""
+Read an IPUMS data file. By default, categorical fields are parsed to categories.
+If this is undesirable, you can set `no_labels` to `false`, or to a list of columns
+that you do not want categories parsed for.
+"""
+function read_ipums(ddi, dat; no_labels=false)
     isfile(ddi) || error("DDI file $ddi does not exist")
     isfile(dat) || error("Data file $dat does not exist")
 
@@ -53,8 +81,19 @@ function read_ipums(ddi, dat)
         startcol = parse(Int64, loc["StartPos"])
         endcol = parse(Int64, loc["EndPos"])
         
+        categories = findall("ns:catgry", node, nsremap)
+
         if decimal > 0
             DoubleField(name, startcol, endcol, decimal)
+        elseif should_parse_labels(name, no_labels) && !isempty(categories)
+            catlabels = Dict(map(categories) do cat
+                value = findfirst("ns:catValu", cat, nsremap)
+                label = findfirst("ns:labl", cat, nsremap)
+
+                value.content => label.content
+            end)
+
+            CategoricalField(name, startcol, endcol, catlabels)
         else
             IntField(name, startcol, endcol)
         end
@@ -79,8 +118,8 @@ function isgzfile(filename)
     end
 end
 
-function read_ipums(ddi, dat, sink)
-    ipums = read_ipums(ddi, dat)
+function read_ipums(ddi, dat, sink; kwargs...)
+    ipums = read_ipums(ddi, dat; kwargs...)
     output = sink(ipums)
     close(ipums)
     return output
@@ -90,8 +129,8 @@ Tables.istable(::IPUMSTable{<:Any}) = true
 Tables.rowaccess(::IPUMSTable{<:Any}) = true
 
 function Tables.rows(t::IPUMSTable{R}) where R
-    map(eachline(t.io)) do line
-        vals = map(c -> parse_col(c, line), t.columns)
+    map(enumerate(eachline(t.io))) do (lineno, line)
+        vals = map(c -> parse_col(c, line, lineno), t.columns)
         R(tuple(vals...))
     end
 end
