@@ -29,8 +29,20 @@ end
 
 # TODO labels
 
-parse_col(f::IntField, line, _)::Float64 = parse(Int64, @view line[f.startcol:f.endcol])
-parse_col(f::DoubleField, line, _)::Float64 = parse(Float64, @view line[f.startcol:f.endcol]) * 10.0^(-f.decimals)
+function parse_numeric(T, f, line)
+    val = @view line[f.startcol:f.endcol]
+    # empty or whitespace
+    if !isnothing(match(r"^\s*$", val))
+        return missing
+    else
+        return parse(T, val)
+    end
+end
+
+parse_col(f::IntField, line, _)::Union{Int64, Missing} = parse_numeric(Int64, f, line)
+
+# if missing, missing * number = missing
+parse_col(f::DoubleField, line, _)::Union{Float64, Missing} = parse_numeric(Float64, f, line) * 10.0^(-f.decimals)
 
 function parse_col(f::CategoricalField, line, lineno)::String
     val = @view line[f.startcol:f.endcol]
@@ -43,8 +55,8 @@ function parse_col(f::CategoricalField, line, lineno)::String
     end
 end
 
-Base.eltype(::IntField) = Int64
-Base.eltype(::DoubleField) = Float64
+Base.eltype(::IntField) = Union{Int64, Missing}
+Base.eltype(::DoubleField) = Union{Float64, Missing}
 Base.eltype(::CategoricalField) = String
 
 
