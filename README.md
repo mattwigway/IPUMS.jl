@@ -1,6 +1,8 @@
 # IPUMS.jl
 
-This is a small Julia package, currently in beta, for reading [IPUMS USA](https://usa.ipums.org) data. It exports a single function, `read_ipums`, which reads data from an IPUMS data file (and corresponding DDI XML codebook).  This returns an `IPUMSTable`, which is a Tables.jl compatible table. It is lazy, meaning no data is read until you access the table, and the table must be closed when done:
+This is a small Julia package, currently in beta, for reading [IPUMS USA](https://usa.ipums.org) data. It is not affiliated with the IPUMS organization.
+
+The package exports a single function, `read_ipums`, which reads data from an IPUMS data file (and corresponding DDI XML codebook).  This returns an `IPUMSTable`, which is a Tables.jl compatible table. It is lazy, meaning no data is read until you access the table, and the table must be closed when done:
 
 ```{julia}
 using IPUMS
